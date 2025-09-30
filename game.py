@@ -250,8 +250,9 @@ class BasketballGamePro:
         return is_valid
 
     def run(self):
-        cv2.namedWindow("Basketball Pro Championship", cv2.WND_PROP_FULLSCREEN)
-        cv2.setWindowProperty("Basketball Pro Championship", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
+        # CAMBIADO: Modo ventana normal en lugar de pantalla completa
+        cv2.namedWindow("Basketball Pro Championship", cv2.WINDOW_NORMAL)
+        cv2.resizeWindow("Basketball Pro Championship", self.screen_width, self.screen_height)
         
         print("BASKETBALL PRO CHAMPIONSHIP INICIADO!")
         print("=" * 60)
