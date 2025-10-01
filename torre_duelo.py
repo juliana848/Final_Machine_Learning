@@ -65,7 +65,7 @@ def show_countdown(cap):
         cv2.putText(frame, i, (WIDTH//2-100, HEIGHT//2), 
                     cv2.FONT_HERSHEY_SIMPLEX, 5, (0,0,255), 10)
         cv2.imshow("Stack Jump 2P", frame)
-        cv2.waitKey(1000)  # 1 segundo
+        cv2.waitKey(1000)
     cv2.waitKey(500)
 
 def run_game():
@@ -94,8 +94,16 @@ def run_game():
         if not ret:
             break
         frame = cv2.flip(frame, 1)
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(rgb)
+
+        # --- Dividir frame ---
+        left_frame = frame[:, :WIDTH//2]
+        right_frame = frame[:, WIDTH//2:]
+
+        rgb_left = cv2.cvtColor(left_frame, cv2.COLOR_BGR2RGB)
+        rgb_right = cv2.cvtColor(right_frame, cv2.COLOR_BGR2RGB)
+
+        res_left = pose.process(rgb_left)
+        res_right = pose.process(rgb_right)
 
         # --- Dibujar línea central ---
         cv2.line(frame, (WIDTH//2, 0), (WIDTH//2, HEIGHT), (255, 255, 255), 2)
@@ -109,25 +117,25 @@ def run_game():
         for p in players:
             p["speed"] = 10 + int(elapsed // 30) * 2
 
-        # --- Detectar jugadores ---
-        if results.pose_landmarks:
-            mp_drawing.draw_landmarks(frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-            landmarks = results.pose_landmarks.landmark
-            x_hip = int((landmarks[mp_pose.PoseLandmark.LEFT_HIP].x +
-                         landmarks[mp_pose.PoseLandmark.RIGHT_HIP].x)/2 * WIDTH)
-            y_hip = int((landmarks[mp_pose.PoseLandmark.LEFT_HIP].y +
-                         landmarks[mp_pose.PoseLandmark.RIGHT_HIP].y)/2 * HEIGHT)
+        # --- Jugador 1 ---
+        if res_left.pose_landmarks and players[0]["alive"]:
+            mp_drawing.draw_landmarks(left_frame, res_left.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+            hips = res_left.pose_landmarks.landmark
+            y_hip = int((hips[mp_pose.PoseLandmark.LEFT_HIP].y + hips[mp_pose.PoseLandmark.RIGHT_HIP].y)/2 * HEIGHT)
+            if detect_jump(y_hip, players[0]):
+                process_jump(players[0])
 
-            if x_hip < WIDTH//2 and players[0]["alive"]:
-                if detect_jump(y_hip, players[0]):
-                    process_jump(players[0])
-            elif x_hip >= WIDTH//2 and players[1]["alive"]:
-                if detect_jump(y_hip, players[1]):
-                    process_jump(players[1])
+        # --- Jugador 2 ---
+        if res_right.pose_landmarks and players[1]["alive"]:
+            mp_drawing.draw_landmarks(right_frame, res_right.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+            hips = res_right.pose_landmarks.landmark
+            y_hip = int((hips[mp_pose.PoseLandmark.LEFT_HIP].y + hips[mp_pose.PoseLandmark.RIGHT_HIP].y)/2 * HEIGHT)
+            if detect_jump(y_hip, players[1]):
+                process_jump(players[1])
 
         alive_count = sum(1 for p in players if p["alive"])
 
-        # --- Dibujar bloques ---
+        # --- Dibujar jugadores ---
         for idx, p in enumerate(players):
             if not p["alive"]:
                 x_text = (p["side"][0] + p["side"][1]) // 2 - 150
@@ -135,16 +143,20 @@ def run_game():
                             cv2.FONT_HERSHEY_SIMPLEX, 2, (0,0,255), 5)
                 continue
 
+            # Mover bloque
             p["block"]["x"] = int(p["block"]["x"] + p["speed"] * p["block"]["dir"])
             if p["block"]["x"] <= p["side"][0] or p["block"]["x"]+p["block"]["w"] >= p["side"][1]:
                 p["block"]["dir"] *= -1
 
+            # Dibujar torre
             for (x, y, w, h) in p["tower"]:
                 cv2.rectangle(frame, (int(x), int(y)), (int(x+w), int(y+h)), (0, 255, 0), -1)
 
+            # Dibujar bloque actual
             bx, by, bw, bh = p["block"]["x"], p["block"]["y"], p["block"]["w"], p["block"]["h"]
             cv2.rectangle(frame, (int(bx), int(by)), (int(bx+bw), int(by+bh)), (255, 0, 0), -1)
 
+            # Puntaje
             if idx == 0:
                 cv2.putText(frame, f"P1: {p['score']}", (30, 50),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 3)
